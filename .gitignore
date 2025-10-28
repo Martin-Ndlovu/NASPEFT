@@ -1,0 +1,42 @@
+# Ignore Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.env
+.venv
+
+# Ignore output and model data, but keep the folders
+output/*
+models/*
+datasets/*
+
+# Allow empty placeholder files to keep folder structure
+!output/.gitkeep
+!models/.gitkeep
+!datasets/.gitkeep
+
+# Ignore other large data or checkpoints
+*.ckpt
+*.pt
+*.bin
+*.h5
+*.pkl
+*.log
+
+# Ignore system and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Ignore temporary or test files
+*.tmp
+*.log
+*.out
+adapters-c90802d5e86866c0148f83dd3f458500033a4dbc/

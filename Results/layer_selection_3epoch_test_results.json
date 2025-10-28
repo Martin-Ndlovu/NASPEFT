@@ -1,0 +1,66 @@
+[
+    {
+        "layer": "layer_0",
+        "perplexity": 12.139591217041016
+    },
+    {
+        "layer": "layer_1",
+        "perplexity": 11.993301391601562
+    },
+    {
+        "layer": "layer_10",
+        "perplexity": 12.30472469329834
+    },
+    {
+        "layer": "layer_11",
+        "perplexity": 12.358778953552246
+    },
+    {
+        "layer": "layer_12",
+        "perplexity": 12.39064884185791
+    },
+    {
+        "layer": "layer_13",
+        "perplexity": 12.351058006286621
+    },
+    {
+        "layer": "layer_14",
+        "perplexity": 12.424928665161133
+    },
+    {
+        "layer": "layer_15",
+        "perplexity": 12.410445213317871
+    },
+    {
+        "layer": "layer_2",
+        "perplexity": 11.964099884033203
+    },
+    {
+        "layer": "layer_3",
+        "perplexity": 12.026763916015625
+    },
+    {
+        "layer": "layer_4",
+        "perplexity": 12.014760971069336
+    },
+    {
+        "layer": "layer_5",
+        "perplexity": 12.050569534301758
+    },
+    {
+        "layer": "layer_6",
+        "perplexity": 12.100309371948242
+    },
+    {
+        "layer": "layer_7",
+        "perplexity": 12.196775436401367
+    },
+    {
+        "layer": "layer_8",
+        "perplexity": 12.202717781066895
+    },
+    {
+        "layer": "layer_9",
+        "perplexity": 12.2293119430542
+    }
+]
