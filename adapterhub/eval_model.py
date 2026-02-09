@@ -1,3 +1,7 @@
+#------------------------------------------------------------------------------------------
+# THIS FILE AIM TO EVALUATE A FINE-TUNED ADAPTER MODEL ON WIKITEXT DATASET
+#------------------------------------------------------------------------------------------
+
 from transformers import Trainer, AutoTokenizer, LlamaAdapterModel
 from datasets import load_from_disk
 tokenizer = AutoTokenizer.from_pretrained("../models/Meta-Llama-3.1-8B-Instruct")

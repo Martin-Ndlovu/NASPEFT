@@ -10,8 +10,8 @@ import os
 # -----------------------------
 # Paths
 # -----------------------------
-base_model_name = "models/Llama-3.2-1B"           # same base model you used
-adapter_path    = "output/llama-3.2-alpaca-sft"  # path where LoRA adapter was saved
+base_model_name = "models/Llama-3.2-1B"           
+adapter_path    = "output/llama-3.2-alpaca-sft"  
 # adapter_name = "alpaca_adapter"
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" 

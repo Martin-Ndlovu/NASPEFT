@@ -2,49 +2,72 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Load results from JSON
-with open("layer_selection_3epoch_eval_results.json", "r") as f:
-    results = json.load(f)
+# ----------- Set global font family to Times New Roman -----------
+plt.rcParams["font.family"] = "Times New Roman"
+plt.rcParams["font.size"] = 32
 
-# Extract layers and perplexities
-layers = [int(r["layer"].split("_")[1]) for r in results]
-perplexities = [r["perplexity"] for r in results]
+# ---------- Load both JSON files ----------    
+with open("Results/layer_selection_3epoch_test_results.json", "r") as f:
+    test_results = json.load(f)
 
-# Sort by layer index so bars are in order
-layers, perplexities = zip(*sorted(zip(layers, perplexities)))
+with open("Results/layer_selection_3epoch_eval_results.json", "r") as f:
+    eval_results = json.load(f)
 
-# Normalize colors so lower perplexity = darker
-norm = plt.Normalize(min(perplexities), max(perplexities))
+# ---------- Extract layers & perplexities ----------
+test_layers = [int(r["layer"].split("_")[1]) for r in test_results]
+test_ppl = [r["perplexity"] for r in test_results]
+
+eval_layers = [int(r["layer"].split("_")[1]) for r in eval_results]
+eval_ppl = [r["perplexity"] for r in eval_results]
+
+# ---------- Sort by layer index ----------
+test_layers, test_ppl = zip(*sorted(zip(test_layers, test_ppl)))
+eval_layers, eval_ppl = zip(*sorted(zip(eval_layers, eval_ppl)))
+
+# ---------- Shared color normalization ----------
+all_ppl = list(test_ppl) + list(eval_ppl)
+norm = plt.Normalize(min(all_ppl), max(all_ppl))
 cmap = plt.cm.viridis_r
-colors = cmap(norm(perplexities))
 
-# Create figure and axis
-fig, ax = plt.subplots(figsize=(12, 2.5))
+# ---------- Figure with 2 subplots ----------
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 10), sharex=True)
 
-# Plot heatmap-like bar chart
-bars = ax.bar(layers, perplexities, color=colors)
+# ---------- Plot TEST ----------
+colors_test = cmap(norm(test_ppl))
+bars1 = ax1.bar(test_layers, test_ppl, color=colors_test, width=0.6)
 
-# Add perplexity values above bars
-for bar, val in zip(bars, perplexities):
-    ax.text(bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.05,
-            f"{val:.2f}",
-            ha="center", va="bottom", fontsize=8)
+for bar, val in zip(bars1, test_ppl):
+    ax1.text(bar.get_x() + bar.get_width()/2,
+             bar.get_height() + 0.1,
+             f"{val:.2f}",
+             ha="center", va="bottom", rotation=90)
 
-# Labels and formatting
-ax.set_xlabel("Layer Index", fontsize=12)
-ax.set_ylabel("Eval Set Perplexity", fontsize=10)
-ax.set_title("Layer-wise Perplexity Heatmap", fontsize=14)
-ax.set_xticks(np.arange(len(layers)))
-ymax = max(perplexities) * 1.1  # 10% higher than tallest bar
-ax.set_ylim(0, ymax)
+ax1.set_ylabel("Test", )
+# ax1.set_title("Layer-wise Perplexity", fontsize=24)
+ax1.tick_params(axis="both", )
+ax1.set_ylim(min(test_ppl)*0.98, max(test_ppl)*1.05)
 
+# ---------- Plot EVAL ----------
+colors_eval = cmap(norm(eval_ppl))
+bars2 = ax2.bar(eval_layers, eval_ppl, color=colors_eval, width=0.6)
 
-# Add colorbar linked to the colormap
+for bar, val in zip(bars2, eval_ppl):
+    ax2.text(bar.get_x() + bar.get_width()/2,
+             bar.get_height() + 0.1,
+             f"{val:.2f}",
+             ha="center", va="bottom", rotation=90)
+
+ax2.set_ylabel("Validation", )
+ax2.set_xlabel("Layer Index", )
+ax2.tick_params(axis="both", )
+ax2.set_ylim(min(eval_ppl)*0.98, max(eval_ppl)*1.05)
+
+# ---------- Shared colorbar ----------
 sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-sm.set_array([])  # required for older matplotlib versions
-fig.colorbar(sm, ax=ax, label="Perplexity Scale")
+sm.set_array([])
+cbar = fig.colorbar(sm, ax=[ax1, ax2], fraction=0.025, pad=0.02, location='right')
+cbar.set_label("Perplexity Scale", )
+cbar.ax.tick_params()
 
-plt.tight_layout()
-# plt.show()
-plt.savefig("layer_perplexity_eval_heatmap.png", dpi=200)
+plt.subplots_adjust(right=0.8, hspace=0.3)
+plt.savefig("layer_perplexity_test_eval_combined.png", dpi=200)

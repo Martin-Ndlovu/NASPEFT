@@ -1,3 +1,8 @@
+#------------------------------------------------------------------------------------------------
+# THIS FILE IS PART OF THE NAS-PEFT FRAMEWORK AND IT DEFINES THE BASE FUNCTION FOR RANDOM SEARCH.
+# IT INCLUDES THE PROBLEM CLASS WHICH HANDLES EVALUATION OF CONFIGURATIONS.
+#------------------------------------------------------------------------------------------------
+
 import json
 import random
 import shutil
@@ -13,11 +18,14 @@ import torch
 from definition import ROOT_DIR
 from accelerate import Accelerator, InitProcessGroupKwargs
 
+#----------------------------------------------------------------------------
+# Initialize Accelerator
+#----------------------------------------------------------------------------
 accelerator = Accelerator()
-# init_process_group_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=3600))
-# accelerator = Accelerator(init_process_group_kwargs=init_process_group_kwargs)
 
+#----------------------------------------------------------------------------
 # Fallback local settings for WikiText
+#----------------------------------------------------------------------------
 TASK_SETTINGS = {
     "wikitext": {
         "num_epochs": 3,
@@ -43,6 +51,9 @@ TASK_SETTINGS_SO = {
     }
 }
 
+#----------------------------------------------------------------------------
+# Problem Class Definition
+#----------------------------------------------------------------------------
 class Problem:
     def __init__(
             self,
@@ -96,6 +107,9 @@ class Problem:
             self.ref_point = None
         self.noise_std = noise_std
 
+    #--------------------------------------------------------------------
+    # Single Configuration Evaluation
+    #--------------------------------------------------------------------
     def _evaluate_single(self, config: Union[CS.Configuration, Dict[str, Any]], optim_kwargs: Optional[Dict[str, Any]] = None):
         assert self.task_name in TASK_SETTINGS, f"{self.task_name} not in TASK_SETTINGS."
         options = TASK_SETTINGS[self.task_name].copy()
@@ -127,6 +141,9 @@ class Problem:
         pass_output_dir = save_path_this_config.rstrip('/')
         self.logger(f"Start training config ID = {config_id}")
 
+        #--------------------------------------------------------------------
+        # Prepare and Execute Training Commands
+        #--------------------------------------------------------------------
         commands = f"""
         cd {ROOT_DIR}/adapterhub
         accelerate launch --main_process_port 0 nas_search.py\
@@ -154,6 +171,10 @@ class Problem:
         --seed={self.seed} --logging_strategy={save_type} --save_strategy={save_type} --logging_steps={logging_steps}\
         --save_steps={num_steps_per_save} --overwrite_output_dir --train_adapter --adapter_name={self.adapter_name} --max_train_samples={low_resource}
         """
+
+        #--------------------------------------------------------------------
+        # Execute the appropriate command based on resource settings
+        #--------------------------------------------------------------------
         if low_resource is not None:
             subprocess.call(commands_low_resource, shell=True)
         elif not self.resplit_dataset:
@@ -161,6 +182,9 @@ class Problem:
         else:
             subprocess.call(commands_resplit, shell=True)
 
+        #--------------------------------------------------------------------
+        # Load Results and Compute Objectives
+        #--------------------------------------------------------------------
         if accelerator.is_main_process:
             trainer_state = json.load(
                 open(os.path.join(save_path_this_config, "trainer_state.json")))
@@ -168,38 +192,6 @@ class Problem:
             params = json.load(
                 open(os.path.join(save_path_this_config, "model_param_dict.json")))
             params_adapter = params["adapters"]
-
-            # Calculation of the number of adapter parameters based on config
-            # max_layer = 16# Llama-3.1-1B
-            # hidden_size = 2048 # Llama-3.1-1B
-            # if self.adapter_name == "naspeft":
-            #     num_adapter_layers = 0
-            #     for i in range(max_layer):
-            #         if not config_dict.get(f"leave_out_{i}", False):
-            #             num_adapter_layers += 1
-            #     self.logger(f"Number of layers with adapters: {num_adapter_layers}")
-            #     reduction_prefix = hidden_size / config_dict['reduction_prefix']
-            #     bottleneck_size = hidden_size / config_dict['reduction_parallel']
-            #     lora_r = 64 / config_dict.get('lora_r', 16) 
-            #     if config_dict['reduction_prefix'] == hidden_size:
-            #         reduction_prefix = 1
-            #     if config_dict['reduction_parallel'] == hidden_size:
-            #         bottleneck_size = 1
-            #     if config_dict.get('lora_r', 16) == 64:
-            #         lora_r = 1
-            #     prefix_size = reduction_prefix * hidden_size * num_adapter_layers * 2
-            #     parallel_size = bottleneck_size * 2 * hidden_size * num_adapter_layers
-            #     lora_size = 2 * lora_r * hidden_size * num_adapter_layers * 4  # 4 target modules
-            #     if config_dict['reduction_prefix'] > hidden_size:
-            #         prefix_size = 0
-            #     if config_dict['reduction_parallel'] > hidden_size:
-            #         parallel_size = 0
-            #     if config_dict.get('lora_r', 16) > hidden_size:
-            #         lora_size = 0
-            #     params_adapter = prefix_size + parallel_size + lora_size
-            
-            # param = float(params_adapter) / float(params['model']) * 100. * float(((-1) ** self.maximization))
-
 
             # Ignore the above calculations and use the true number of parameters instead
             param = float(params_adapter) / float(params['model']) * 100. * float(((-1) ** self.maximization))
@@ -221,6 +213,9 @@ class Problem:
             else:
                 return all_res
 
+    #--------------------------------------------------------------------
+    # Evaluate Multiple Configurations
+    #--------------------------------------------------------------------
     def evaluate_true(self, X: list) -> torch.Tensor:
         if self.mock_run:
             raise NotImplementedError("Mock run not supported in Random Search")
@@ -230,5 +225,8 @@ class Problem:
         res = torch.stack([f(x) for x in X]).view(len(X), self.num_objectives)
         return res
 
+    #--------------------------------------------------------------------
+    # Callable Interface
+    #--------------------------------------------------------------------
     def __call__(self, X: list) -> torch.Tensor:
         return self.evaluate_true(X)

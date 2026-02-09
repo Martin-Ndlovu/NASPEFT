@@ -60,19 +60,20 @@ from transformers.trainer_utils import get_last_checkpoint
 from accelerate import Accelerator
 import torch.distributed as dist
 
-
-#  # Silence internal Hugging Face and Datasets loggers
+#--------------------------------------------------------------------------------
+# Silence internal Hugging Face and Datasets loggers
+#--------------------------------------------------------------------------------
 from transformers.utils import logging as hf_logging
-# hf_logging.set_verbosity_error()
-# datasets.utils.logging.set_verbosity_error()
 
-# # Prevent them from adding their own handlers
-# hf_logging.disable_default_handler()
-# hf_logging.disable_propagation()
-
+#--------------------------------------------------------------------------------
+# Logging setup
+#--------------------------------------------------------------------------------
 logger = logging.getLogger(__name__)
 accelerator = Accelerator()
 
+#--------------------------------------------------------------------------------
+# Function to split datasets
+#--------------------------------------------------------------------------------
 def split_datasets(train_ds, n: int = None):
     if accelerator.is_main_process:
         logger.info(
@@ -92,6 +93,9 @@ def split_datasets(train_ds, n: int = None):
     new_eval_ds = train_ds.select(range(split_at, n))
     return new_train_ds, new_eval_ds
 
+#---------------------------------------------------------------------------------
+# Data Classes
+#---------------------------------------------------------------------------------
 @dataclass
 class DataTrainingArguments:
     """
@@ -155,11 +159,13 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "Truncate the number of prediction examples."}
     )
-
     def __post_init__(self):
         if self.dataset_name is not None:
             self.dataset_name = self.dataset_name.lower()
 
+#---------------------------------------------------------------------------------
+# Training Arguments
+#---------------------------------------------------------------------------------
 @dataclass
 class MyTrainingArguments(TrainingArguments):
     """
@@ -169,7 +175,6 @@ class MyTrainingArguments(TrainingArguments):
         default=True,
         metadata={"help": "Whether to run training."}
     )
-
     do_eval: bool = field(
         default=False,
         metadata={"help": "Whether to run evaluation on the validation set."}
@@ -178,36 +183,26 @@ class MyTrainingArguments(TrainingArguments):
         default="../output",
         metadata={"help": "The output directory where the model predictions and checkpoints will be written."}
     )
-
     overwrite_output_dir: bool = field(
         default=True,
         metadata={"help": "Overwrite the content of the output directory."}
     )
-
-    # num_train_epochs: int = field(
-    #     default=1,
-    #     metadata={"help": "Total number of training epochs to perform."}
-    # )
     per_device_train_batch_size: int = field(
         default=4,
         metadata={"help": "Batch size per device during training."}
     )
-   
     per_device_eval_batch_size: int = field(
         default=1,
         metadata={"help": "Batch size per device during evaluation."}
     )
-   
     eval_strategy: str = field(
         default="steps",
         metadata={"help": "Evaluation strategy to adopt during training."}
     )
-   
     logging_strategy: str = field(
         default="steps",
         metadata={"help": "Logging strategy to adopt during training."}
     )
-   
     logging_steps: int = field(
         default=500,
         metadata={"help": "Log every X updates steps."}
@@ -224,40 +219,14 @@ class MyTrainingArguments(TrainingArguments):
         default=3,
         metadata={"help": "Limit the total amount of checkpoints. Deletes the older checkpoints in the output_dir."}
     )
-   
-    # gradient_accumulation_steps: int = field(
-    #     default=4,
-    #     metadata={"help": "Number of updates steps to accumulate before performing a backward/update pass."}
-    # )
-   
     max_steps: int = field(
         default=5000,
         metadata={"help": "Total number of training steps to perform. Override num_train_epochs."}
     )
-   
-    # lr_scheduler_type: str = field(
-    #     default="constant",
-    #     metadata={"help": "The scheduler type to use."}
-    # )
-   
-    # optim: str = field(
-    #     default="paged_adamw_32bit",
-    #     metadata={"help": "Optimizer to use during training."}
-    # )
-   
     learning_rate: float = field(
         default=1e-4,
         metadata={"help": "Initial learning rate (after the potential warmup periodto use."}
     )
-    # group_by_length: bool = field(
-    #     default=True,
-    #     metadata={"help": "Whether to group sequences of similar lengths together during training."}
-    # )
-    # bf16: bool = field(
-    #     default=False,
-    #     metadata={"help": "Whether to use bfloat16requires PyTorch 1.10 or later)."}
-    # )
-   
     warmup_ratio: float = field(
         default=0.05,
         metadata={"help": "Ratio of total steps for the warmup phase."}
@@ -266,11 +235,6 @@ class MyTrainingArguments(TrainingArguments):
         default=0.3,
         metadata={"help": "Max gradient norm for gradient clipping."}
     )
-   
-    # strategy: str = field(
-    #     default="ddp",
-    #     metadata={"help": "The strategy to use for training."}
-    # )
     seed: int = field(
         default=42,
         metadata={"help": "Random seed for initialization."}
@@ -280,16 +244,17 @@ class MyTrainingArguments(TrainingArguments):
         metadata={"help": "Weight decay to use."}
     )
 
+#---------------------------------------------------------------------------------
+# Data Classes for Model Arguments
+#---------------------------------------------------------------------------------
 @dataclass
 class ModelArguments:
     nas_adapter_config_path: str = field(
         metadata={"help": "NAS adapter config path"}
     )
-
     model_name_or_path: str = field(
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
-   
     adapter_name: str = field(
         default="naspeft",
         metadata={"help": "The name of the adapter to use."}
@@ -302,12 +267,10 @@ class ModelArguments:
         default=None,
         metadata={"help": "Where to store the pretrained models downloaded from huggingface.co"}
     )
-   
     use_fast_tokenizer: bool = field(
         default=False,
         metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."}
     )
-   
     model_revision: str = field(
         default="main",
         metadata={"help": "The specific model version to usecan be a branch name, tag name or commit id)."}
@@ -317,7 +280,9 @@ class ModelArguments:
         metadata={"help": "Will use the token for private models."}
     )
    
-
+#---------------------------------------------------------------------------------
+# Data Classes for Adapter Arguments
+#---------------------------------------------------------------------------------
 @dataclass
 class MultiLingAdapterArguments:
     train_adapter: bool = field(
@@ -334,6 +299,9 @@ class MultiLingAdapterArguments:
         metadata={"help": "Path to pre-trained language adapter to load."}
     )
 
+#---------------------------------------------------------------------------------
+# Get all checkpoints in a folder
+#---------------------------------------------------------------------------------
 def get_all_checkpoint(folder):
     PREFIX_CHECKPOINT_DIR = "checkpoint"
     _re_checkpoint = re.compile(r"^" + PREFIX_CHECKPOINT_DIR + r"\-(\d+)$")
@@ -345,6 +313,9 @@ def get_all_checkpoint(folder):
     ]
     return checkpoints if checkpoints else None
 
+#---------------------------------------------------------------------------------
+# Default argument dictionaries
+#---------------------------------------------------------------------------------
 default_arg = {
     "non_linearity": "relu",
     "residual_before_ln": True,
@@ -360,6 +331,9 @@ default_arg = {
     "is_parallel": False,
 }
 
+#---------------------------------------------------------------------------------
+# Default argument dictionaries for different adapter types
+#---------------------------------------------------------------------------------
 default_prefix_arg = {
     "prefix_length": 1,
     "bottleneck_size": 2048,
@@ -381,14 +355,22 @@ default_mam_arg = {
     "output_adapter": True,
 }
 
+# -----------------------------------------------------------------------------
+# Main function
+# -----------------------------------------------------------------------------
 def main():
-
+    #--------------------------------------------------------------------------
+    # Set environment variables for distributed training
+    #--------------------------------------------------------------------------
     os.environ["NCCL_P2P_DISABLE"] = "1"
     os.environ["NCCL_IB_DISABLE"] = "1"
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
     os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "1"
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+    #-------------------------------------------------------------------------
+    # Parse arguments
+    #-------------------------------------------------------------------------
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MyTrainingArguments, MultiLingAdapterArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         model_args, data_args, training_args, adapter_args = parser.parse_json_file(
@@ -401,9 +383,10 @@ def main():
         training_args.metric_for_best_model = "eval_perplexity"
         training_args.greater_is_better = False
         training_args.ddp_find_unused_parameters = False
-        # training_args.ddp_backend = "nccl"
-        # training_args.ddp_backend = "nccl" if local_rank != -1 else None
 
+    #-------------------------------------------------------------------------
+    #  Setup logging
+    #-------------------------------------------------------------------------
     setup_logging(os.path.join(training_args.output_dir, "training.log"))
     log_level = training_args.get_process_log_level()
     datasets.utils.logging.set_verbosity(log_level)
@@ -413,11 +396,10 @@ def main():
     
     training_args.evaluation_strategy = "steps"
     training_args.eval_steps = 500
-    # training_args.save_strategy = "steps"
     
-    # if accelerator.is_main_process:
-    #     logger.info("Training/evaluation parameters %s", training_args)
-
+    #-------------------------------------------------------------------------
+    # Detecting last checkpoint
+    #-------------------------------------------------------------------------
     last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
@@ -433,19 +415,25 @@ def main():
                     "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
                 )
            
+    #-------------------------------------------------------------------------
     # Set seed before initialing the model
+    #-------------------------------------------------------------------------
     set_seed(training_args.seed)
 
-    dataset = load_dataset(data_args.dataset_name, data_args.dataset_config_name) #data_args.local_dataset_path)
+    dataset = load_dataset(data_args.dataset_name, data_args.dataset_config_name)
 
+    #-------------------------------------------------------------------------
     # A filtering function to remove empty or very short texts
+    #-------------------------------------------------------------------------
     def filter_texts(example):
         text = example.get("text")
         if not text or len(text) < 5:
             return False
         return True
 
-    # Add text cleaning
+    #-------------------------------------------------------------------------
+    # Add text cleaning to filter out special tokens
+    #-------------------------------------------------------------------------
     def clean_special_tokens(example):
         text = example["text"]
         text = re.sub(r'@-@', '-', text)
@@ -466,11 +454,13 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Loading model ----
+    #-----------------------------------------------------------------------
+    # Loading model, quantaisation can be used to reduce memory usage
+    #----------------------------------------------------------------------
     model = AutoAdapterModel.from_pretrained(
         model_args.model_name_or_path,
         trust_remote_code=True,
-        # device_map=None,  # No auto-sharding for DDP
+        # device_map=None, 
         # use_gradient_checkpointing=True,
         # quantization_config=BitsAndBytesConfig(
         #     load_in_4bit=True,
@@ -482,17 +472,13 @@ def main():
     )
     model.config.pad_token_id = tokenizer.pad_token_id
     model.config.eos_token_id = tokenizer.eos_token_id
-   
     model.use_cache = False  # Disable cache for training
-
     model_param_dict = {"model": model.num_parameters()}
-    # if accelerator.is_main_process:
-        # logger.info(f"Model number of parameters: {model_param_dict['model']}")
 
-    # Initialize adapters
+    #--------------------------------------------------------------------
+    # Initialize adapters and check for pre-loaded adapters
+    #--------------------------------------------------------------------
     adapters.init(model)
-
-    # Check for pre-loaded adapters
     if model.has_adapters():
         for adapter_name in model.get_configured_adapters():
             if accelerator.is_main_process:
@@ -510,7 +496,9 @@ def main():
         with open(model_args.nas_adapter_config_path, "r")as f:
             config_args = json.load(f)
 
+        #--------------------------------------------------------------------
         # Handle leave_out layers
+        #--------------------------------------------------------------------
         leave_out_list = []
         number_layer = 16  # LLaMA-3.2-1B has 16 layers
         for i in range(number_layer):
@@ -522,7 +510,9 @@ def main():
 
         hidden_size = 2048  # LLaMA-3.2-1B has hidden size of 2048
 
+        #-------------------------------------------------------------------
         # Configure adapters
+        #-------------------------------------------------------------------
         if model_args.adapter_name == "prefix":
             config_args["prefix_length"] = config_args.get("prefix_length", 1)
             del config_args["reduction_factor"]
@@ -621,17 +611,23 @@ def main():
             exclude_lora = False
             exclude_parallel = False
 
+            #--------------------------------------------------------------------
             # prefix tuning configuration
+            #--------------------------------------------------------------------
             if config_args.get("reduction_prefix") > hidden_size:
                 config_args["reduction_prefix"] = hidden_size
                 exclude_prefix = True
 
+            #--------------------------------------------------------------------
             # LoRA configuration
+            #--------------------------------------------------------------------
             if config_args.get("lora_r", 16) > 64:
                 config_args["lora_r"] = 1
                 exclude_lora = True
 
+            #--------------------------------------------------------------------
             # Parallel (ParBnAdapter) configuration
+            #--------------------------------------------------------------------
             if config_args.get("reduction_parallel") > hidden_size:
                 config_args["reduction_parallel"] = hidden_size
                 exclude_parallel = True
@@ -651,7 +647,9 @@ def main():
             if accelerator.is_main_process:
                 logger.info(f"============= Config Args {config_args} =======")
 
+            #--------------------------------------------------------------------
             # Configure adapter based on exclusion flags
+            #--------------------------------------------------------------------
             config_flag_list = [not exclude_prefix, not exclude_lora, not exclude_parallel]
             config_list = [
                 LoRAConfig(
@@ -668,7 +666,6 @@ def main():
                     output_adapter=True,
                     dropout=0.1, 
                 ),
-                
                 PrefixTuningConfig(
                     prefix_length=config_args["reduction_prefix"],
                     leave_out=config_args["leave_out"],
@@ -678,7 +675,9 @@ def main():
             ]
             adapter_config = ConfigUnion(*[config_list[i] for i in range(len(config_list)) if config_flag_list[i]])
 
-
+        #--------------------------------------------------------------------
+        # Add and train adapter
+        #--------------------------------------------------------------------
         model.add_adapter(model_args.adapter_name, config=adapter_config)
         model.train_adapter(model_args.adapter_name)
         if accelerator.is_main_process:
@@ -689,23 +688,24 @@ def main():
                 "Adapters can only be loaded in adapters training mode. "
                 "Use --train_adapter to enable adapter training")
            
-
+    #--------------------------------------------------------------------
     # Move model to device
+    #--------------------------------------------------------------------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # for p in model.parameters():
-    #     if p.dim() == 1:
-    #         p.data = p.data.to(torch.float32)  # Cast small parameters to fp32 for stability
-
-    # if accelerator.is_main_process:
-        # logger.info(f"Model number of parameters after adapter: {model.num_parameters()}")
+    #--------------------------------------------------------------------
+    # Save model parameter counts
+    #--------------------------------------------------------------------
     model_param_dict["w. adapters"] = model.num_parameters()
     model_param_dict["adapters"] = model_param_dict["w. adapters"] - model_param_dict["model"]
     os.makedirs(training_args.output_dir, exist_ok=True)
     with open(os.path.join(training_args.output_dir, "model_param_dict.json"), "w", encoding="utf8") as f:
         json.dump(model_param_dict, f, indent=2, ensure_ascii=False)
 
+    #--------------------------------------------------------------------
+    # Preprocessing the datasets
+    #--------------------------------------------------------------------
     def preprocess_function(examples):
         result = tokenizer(
             examples["text"],
@@ -722,29 +722,33 @@ def main():
 
         return result
     
+    #--------------------------------------------------------------------
     # Apply size limits before tokenization
+    #--------------------------------------------------------------------
     if training_args.do_train and "train" in dataset:
         max_train_samples = data_args.max_train_samples if data_args.max_train_samples is not None else len(dataset["train"])
         max_train_samples = min(len(dataset["train"]), max_train_samples)
         dataset["train"] = dataset["train"].select(range(max_train_samples))
 
-
+    #--------------------------------------------------------------------
+    # Apply size limits before tokenization
+    #--------------------------------------------------------------------
     if training_args.do_eval and "validation" in dataset:
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(dataset["validation"])
         max_eval_samples = min(len(dataset["validation"]), max_eval_samples)
         dataset["validation"] = dataset["validation"].select(range(max_eval_samples))
 
+    #--------------------------------------------------------------------
+    # Apply size limits before tokenization
+    #--------------------------------------------------------------------
     if training_args.do_predict and "test" in dataset:
         max_predict_samples = data_args.max_predict_samples if data_args.max_predict_samples is not None else len(dataset["test"])
         max_predict_samples = min(len(dataset["test"]), max_predict_samples)
         dataset["test"] = dataset["test"].select(range(max_predict_samples))
 
-    # if accelerator.is_main_process:
-        # logger.info(f"Reduced dataset sizes - train: {len(dataset.get('train', []))}, validation: {len(dataset.get('validation', []))}, test: {len(dataset.get('test', []))}")
-        
-        # logger.info(f"Tokenized dataset: {dataset}")
-
+    #--------------------------------------------------------------------
     # Tokenize each split separately
+    #--------------------------------------------------------------------
     num_proc = min(4, len(dataset["train"]) // 250) if training_args.do_train else 1
     tokenized_datasets = dataset.map(
         preprocess_function,
@@ -754,7 +758,9 @@ def main():
         desc="Tokenizing dataset",
     )
 
+    #--------------------------------------------------------------------
     # Grouping/chunking
+    #--------------------------------------------------------------------
     def group_texts(examples):
         concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
         total_length = len(concatenated_examples[list(examples.keys())[0]])
@@ -771,6 +777,9 @@ def main():
         desc=f"Grouping texts into chunks of {data_args.max_seq_length}",
     )
 
+    #--------------------------------------------------------------------
+    # Data collator and datasets for training/evaluation
+    #--------------------------------------------------------------------
     if training_args.do_train:
         if "train" not in tokenized_datasets:
             raise ValueError("--do_train requires a train dataset")
@@ -779,6 +788,9 @@ def main():
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
 
+    #--------------------------------------------------------------------
+    # Datasets for evaluation
+    #--------------------------------------------------------------------
     if training_args.do_eval:
         if "validation" not in tokenized_datasets:
             raise ValueError("--do_eval requires a validation dataset")
@@ -787,6 +799,9 @@ def main():
             max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
             eval_dataset = eval_dataset.select(range(max_eval_samples))
 
+    #--------------------------------------------------------------------
+    # Datasets for prediction
+    #--------------------------------------------------------------------
     if training_args.do_predict:
         if "test" not in tokenized_datasets:
             raise ValueError("--do_predict requires a test dataset")
@@ -795,6 +810,9 @@ def main():
             max_predict_samples = min(len(predict_dataset), data_args.max_predict_samples)
             predict_dataset = predict_dataset.select(range(max_predict_samples))
 
+    #--------------------------------------------------------------------
+    # Resplit dataset if required
+    #--------------------------------------------------------------------
     if data_args.resplit_dataset:
         logger.info(f"Original length of training dataset: {len(tokenized_datasets['train'])}")
         train_dataset, eval_dataset = split_datasets(tokenized_datasets["train"], n=data_args.max_train_samples)
@@ -806,8 +824,14 @@ def main():
         eval_dataset = tokenized_datasets["validation"]
         predict_dataset = tokenized_datasets["test"]
 
+    #--------------------------------------------------------------------
+    # Data collator for language modeling
+    #--------------------------------------------------------------------
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
+    #--------------------------------------------------------------------
+    # Initialize AdapterTrainer
+    #--------------------------------------------------------------------
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
         if not isinstance(logits, torch.Tensor):
@@ -821,10 +845,12 @@ def main():
         perplexity = torch.exp(loss)
         return {"perplexity": perplexity.item()}
 
-    # Adding a callback for evaluation without requiring extra space
+    #--------------------------------------------------------------------
+    # Adding a callback for evaluation without requiring extra space 
+    #--------------------------------------------------------------------
     class PerplexityCallback(TrainerCallback):
         def __init__(self):
-            self.last_eval_metrics = {}  # Store for on_log
+            self.last_eval_metrics = {}
         
         def on_evaluate(self, args, state, control, **kwargs):
             metrics = kwargs.get("metrics")
@@ -836,7 +862,10 @@ def main():
                 perplexity = math.exp(eval_loss)
                 metrics["eval_perplexity"] = perplexity 
 
-                # Update the trainer's state log_history
+                #--------------------------------------------------------------------
+                # Update the trainer's state log_history for consistancy logging and history storage 
+                # to include perplexity.
+                #--------------------------------------------------------------------
                 state.log_history.append({
                     "epoch": state.epoch,
                     "step": state.global_step,
@@ -847,8 +876,9 @@ def main():
                     "eval_steps_per_second": metrics.get("eval_steps_per_second")
                 })
 
-            
+            #--------------------------------------------------------------------
             # Store for later logging
+            #--------------------------------------------------------------------
             self.last_eval_metrics = metrics.copy()
             
             return control
@@ -856,7 +886,6 @@ def main():
         def on_log(self, args, state, control, logs=None, **kwargs):
             if logs is None:
                 return control
-            
             # If this log is from eval (check for eval keys), merge perplexity
             if "eval_loss" in logs and "eval_perplexity" not in logs:
                 # Pull from stored metrics or recompute
@@ -866,17 +895,22 @@ def main():
             
             return control
 
+    #--------------------------------------------------------------------
+    # Initialize AdapterTrainer
+    #--------------------------------------------------------------------
     trainer = AdapterTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
-        # compute_metrics=compute_metrics,
+        # compute_metrics=compute_metrics, 
         tokenizer=tokenizer,
         data_collator=data_collator,
         callbacks=[PerplexityCallback(), EarlyStoppingCallback(early_stopping_patience=data_args.patience)],)
    
+    #--------------------------------------------------------------------
     # Train the model
+    #--------------------------------------------------------------------
     if training_args.do_train:
         checkpoint = training_args.resume_from_checkpoint or last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
@@ -887,7 +921,9 @@ def main():
         trainer.save_metrics("train", train_result.metrics)
         trainer.save_state()
 
+    #--------------------------------------------------------------------
     # Evaluate the model
+    #--------------------------------------------------------------------
     if training_args.do_eval:
         if accelerator.is_main_process:
             logger.info("*** Evaluate ***")
@@ -897,7 +933,9 @@ def main():
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
+    #--------------------------------------------------------------------
     # Do prediction
+    #--------------------------------------------------------------------
     if training_args.do_predict and data_args.resplit_dataset:
         if accelerator.is_main_process:
             logger.info("*** Test ***")
@@ -928,19 +966,12 @@ def main():
         kwargs["dataset_args"] = data_args.dataset_config_name
         kwargs["dataset"] = "WikiText-2-v1"
 
-    # if training_args.push_to_hub:
-    #     trainer.push_to_hub(**kwargs)
-    # else:
-    #     trainer.create_model_card(**kwargs)
-
     if accelerator.is_main_process:
         all_checkpoints = get_all_checkpoint(training_args.output_dir)
         if all_checkpoints:
             for checkpoint in all_checkpoints:
                 last_checkpoint = os.path.join(training_args.output_dir, checkpoint)
                 shutil.rmtree(last_checkpoint, ignore_errors=True)
-
-    # dist.destroy_process_group()
 
 
 def _mp_fn(index):

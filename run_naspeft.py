@@ -27,7 +27,7 @@ parser.add_argument('-dp', "--data_path", type=str, default=f"{ROOT_DIR}/dataset
 parser.add_argument('-mp', "--model_path", type=str, default=f"{ROOT_DIR}/models/Llama-3.2-1B/")
 parser.add_argument('-t', "--task", type=str, default="wikitext")
 parser.add_argument('-s', '--seed', type=int, default=42)
-parser.add_argument('-mi', '--max_iter', type=int, default=200)
+parser.add_argument('-mi', '--max_iter', type=int, default=200)    
 parser.add_argument('-bs', '--batch_size', type=int, default=4)
 parser.add_argument('-ni', "--n_init", type=int, default=20)
 parser.add_argument('-o', "--objectives", nargs="+", default=["param", "perplexity"])

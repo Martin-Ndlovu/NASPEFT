@@ -103,7 +103,6 @@ def formatting_prompts_func(example):
     return {"text": outputs}
 
 def formatting_single(example):
-    # example is a mapping of single fields (not batched)
     instruction = example.get("instruction", "")
     input_text = example.get("input", "")
     output = example.get("output", "")
@@ -111,7 +110,7 @@ def formatting_single(example):
     if input_text:
         text += f"\n### Input:\n{input_text}"
     text += f"\n### Response:\n{output}"
-    return text  # SFTTrainer expects a string
+    return text  
 
 train_dataset = train_dataset.map(formatting_prompts_func, batched=True)
 
@@ -131,7 +130,6 @@ training_args = TrainingArguments(
     save_strategy="steps",
     save_steps=500,
     save_total_limit=20,
-    # Optional: Add evaluation on validation set
     eval_strategy="steps",
     eval_steps=500,
     load_best_model_at_end=True,
@@ -142,7 +140,7 @@ training_args = TrainingArguments(
 trainer = SFTTrainer(
     model=model,
     train_dataset=train_dataset,
-    eval_dataset=dataset["validation"],  # Optional: Added for evaluation
+    eval_dataset=dataset["validation"],  
     peft_config=peft_config,
     # dataset_text_field="text",
     processing_class=tokenizer,

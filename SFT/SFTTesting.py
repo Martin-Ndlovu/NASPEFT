@@ -8,8 +8,8 @@ from bert_score import score
 # -----------------------------
 # Paths
 # -----------------------------
-base_model_name = "models/Llama-3.2-1B"           # same base model you used
-adapter_path    = "output/layer_selection/layer_0/finetuned_layer_0"  # path where LoRA adapter was saved
+base_model_name = "models/Llama-3.2-1B"           
+adapter_path    = "output/layer_selection/layer_0/finetuned_layer_0"  
 
 # -----------------------------
 # Load base model in 4-bit

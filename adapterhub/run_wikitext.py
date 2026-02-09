@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Fine-tuning Llama 3.1 8B Instruct on Wikitext-103-v1 with adapters. """
+""" Fine-tuning Llama 3.2 1B  on Wikitext-103-v1 with adapters. """
 
 import json
 import logging
@@ -57,7 +57,7 @@ class ModelArguments:
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
     """
     model_name_or_path: str = field(
-        default="../models/Meta-Llama-3.1-8B-Instruct",
+        default="../models/Meta-Llama-3.2-1B",
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
     adapter_name: str = field(
@@ -205,28 +205,41 @@ class MyTrainingArguments(TrainingArguments):
         metadata={"help": "Random seed for initialization."}
     )
 
-
+# ----------------------------------------------------------------------------------------------
+# Main function to run the fine-tuning process
+# ----------------------------------------------------------------------------------------------
 
 def main():
+    #-------------------------------------------------------------------------------------------
     # Set the environment variable to use only the first GPU
+    #-------------------------------------------------------------------------------------------
     os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-    # Parse arguments
+    #-------------------------------------------------------------------------------------------
+    # Initialize argument parser and parse arguments
+    #-------------------------------------------------------------------------------------------
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MyTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
+    #-------------------------------------------------------------------------------------------
     # Ensure eval_strategy and early stopping compatibility
+    #-------------------------------------------------------------------------------------------
     training_args.load_best_model_at_end = True
     training_args.metric_for_best_model = "perplexity"
     training_args.greater_is_better = False
+
+    #-------------------------------------------------------------------------------------------
     # Set gradient accumulation to reduce memory usage
+    #-------------------------------------------------------------------------------------------
     if not hasattr(training_args, "gradient_accumulation_steps"):
         training_args.gradient_accumulation_steps = 4
 
-    # Setup logging
+    #-------------------------------------------------------------------------------------------
+    # Setup logging and log training arguments
+    #-------------------------------------------------------------------------------------------
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
@@ -240,7 +253,9 @@ def main():
     transformers.utils.logging.enable_explicit_format()
     logger.info(f"Training/evaluation parameters {training_args}")
 
-    # Detect last checkpoint
+    #-------------------------------------------------------------------------------------------
+    # Detect last checkpoint if resuming training
+    #-------------------------------------------------------------------------------------------
     last_checkpoint = None
     if os.path.isdir(os.path.join(training_args.output_dir, model_args.adapter_name)) and training_args.do_train and not training_args.overwrite_output_dir:
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
@@ -249,10 +264,14 @@ def main():
         elif last_checkpoint is not None:
             logger.info(f"Resuming training from {last_checkpoint}")
 
-    # Set seed
+    #-------------------------------------------------------------------------------------------
+    # Set seed for reproducibility
+    #-------------------------------------------------------------------------------------------
     set_seed(training_args.seed)
 
-    # Load dataset
+    #-------------------------------------------------------------------------------------------
+    # Load dataset and preprocess
+    #-------------------------------------------------------------------------------------------
     dataset = load_dataset(data_args.local_dataset_path)
     print(f"Loaded dataset from: {data_args.local_dataset_path}")
 
@@ -270,7 +289,9 @@ def main():
     }
     print("Preprocessed dataset:", dataset)
 
-
+    #-------------------------------------------------------------------------------------------
+    # Load model and initialize adapters
+    #-------------------------------------------------------------------------------------------
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         trust_remote_code=True,
@@ -285,18 +306,17 @@ def main():
     )
     model.use_cache = False  # Disable cache for training
 
-    # print(f"GPU memory after model load: {torch.cuda.memory_allocated()/1e9:.2f} GiB")
-    # print(f"Memory summary after model load:\n{torch.cuda.memory_summary()}")
-
+    #-------------------------------------------------------------------------------------------
+    # Print model and adapter information
+    #-------------------------------------------------------------------------------------------
     print(f"Model head count: {model.config.num_attention_heads}")
     print(f"Model config: {model.config}")
 
-    
-    # Initialize adapters
+    #-------------------------------------------------------------------------------------------
+    # Initialize adapters and check for pre-loaded adapters
+    #-------------------------------------------------------------------------------------------
     adapters.init(model)
     print("Adapters initialized for model")
-
-    # Check for pre-loaded adapters
     print("Adapter summary before setup:", model.adapter_summary())
     if model.has_adapters():
         for adapter_name in model.get_configured_adapters():
@@ -309,8 +329,9 @@ def main():
     model_param_dict = {'model': model.num_parameters()}
     print(f"Total model parameters before adapters: {model.num_parameters()}")
 
-
-    # Setup adapters
+    #-------------------------------------------------------------------------------------------
+    # Setup adapters based on specified adapter type
+    #-------------------------------------------------------------------------------------------
     task_name = "wikitext"
     if model_args.adapter_name == "pfeiffer":
         config = SeqBnConfig(reduction_factor=model_args.reduction_factor)
@@ -375,7 +396,7 @@ def main():
             attn_matrices=["q", "k", "v"],
             alpha=16, r=64, dropout=0.1,
         ),
-        # PrefixTuningConfig(flat=True, prefix_length=30),
+        PrefixTuningConfig(flat=True, prefix_length=30),
         ParBnConfig(reduction_factor=32)
         )
         model.add_adapter(model_args.adapter_name, config=config)
@@ -395,8 +416,9 @@ def main():
         if param.dim() == 1:
             param.data = param.data.to(torch.float32)  # Cast small parameters to fp32 for stability
 
-
-    # Verify trainable parameters
+    #-------------------------------------------------------------------------------------------
+    # Verify trainable parameters and log model information
+    #-------------------------------------------------------------------------------------------
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Total trainable parameters: {trainable_params}")
     if trainable_params == 0:
@@ -406,18 +428,11 @@ def main():
     print(f"Total model parameters after adapters: {model.num_parameters()}")
     model_param_dict['total_with_adapters'] = model.num_parameters()
     model_param_dict['adapters_only'] = model_param_dict['total_with_adapters'] - model_param_dict['model']
-    
-    # class CastOutputToFloat(torch.nn.Sequential):
-    #     """
-    #     Custom module to cast model outputs to float32.
-    #     """
-    #     def forward(self, x):
-    #         return super().forward(x.to(torch.float32))
-    # model.lm_head = CastOutputToFloat(model.lm_head)
 
     print("Model: ", model)
-
+    #-------------------------------------------------------------------------------------------
     # Verify the datatypes of model parameters
+    #-------------------------------------------------------------------------------------------
     dtypes = {}
     for _, p in model.named_parameters():
         dtype = p.dtype
@@ -435,7 +450,9 @@ def main():
     with open(os.path.join(training_args.output_dir, "model_info.json"), "w", encoding='utf8') as f:
         json.dump(model_param_dict, f, indent=2)
 
-    # # Tokenization 
+    #-------------------------------------------------------------------------------------------
+    # Tokenization 
+    #-------------------------------------------------------------------------------------------
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         trust_remote_code=True
@@ -451,7 +468,9 @@ def main():
         tokenized["labels"] = tokenized["input_ids"].copy()
         return tokenized
 
-  # Tokenize each split separately
+    #-------------------------------------------------------------------------------------------
+    # Tokenize dataset with multiprocessing
+    #-------------------------------------------------------------------------------------------
     num_proc = min(4, len(dataset["train"]) // 250) # Adjust number of processes based on dataset size
     tokenized_dataset = {
         "train": dataset["train"].map(tokenize_function, batched=True, num_proc=max(1, num_proc),   remove_columns=["text"]),
@@ -461,7 +480,9 @@ def main():
 
     print("Tokenized dataset:", tokenized_dataset)
 
-    # Compute metrics
+    #-------------------------------------------------------------------------------------------
+    # Compute metrics 
+    # -------------------------------------------------------------------------------------------
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
         # Convert to torch tensors if needed
@@ -490,7 +511,9 @@ def main():
         pad_to_multiple_of=8
     )
 
+    #-------------------------------------------------------------------------------------------
     # Initialize Trainer
+    #-------------------------------------------------------------------------------------------
     trainer = AdapterTrainer(
         model=model,
         args=training_args,
@@ -501,7 +524,9 @@ def main():
         callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
+    #-------------------------------------------------------------------------------------------
     # Training
+    #-------------------------------------------------------------------------------------------
     if training_args.do_train:
         train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
         metrics = train_result.metrics
@@ -509,15 +534,18 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
-
-    # Evaluation
+    #-------------------------------------------------------------------------------------------
+    # Evaluation 
+    #-------------------------------------------------------------------------------------------
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
         metrics = trainer.evaluate()
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
-
+        
+    #-------------------------------------------------------------------------------------------
     # Create model card
+    #-------------------------------------------------------------------------------------------
     trainer.create_model_card(
         finetuned_from=model_args.model_name_or_path,
         tasks="language-modeling",
