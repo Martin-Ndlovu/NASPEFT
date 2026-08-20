@@ -5,8 +5,8 @@
 ---
 
 ## Overview
-
-This repository builds on [AutoPEFT](https://github.com/cambridgeltl/autopeft) (Zhou et al., TACL 2024), adapting its codebase to support seq2seq backbones (T5), an exact parameter oracle, a Random Forest surrogate, and a union adapter search space combining LoRA, Parallel Bottleneck adapters, and Prefix Tuning.
+NASPEFT is a neural architecture search framework for automatically discovering optimal parameter-efficient fine-tuning configurations for pre-trained language models. It uses surrogate-model-based optimisation to search over a joint space of LoRA, Parallel Bottleneck, and Prefix Tuning adapters, targeting the performance-efficiency Pareto frontier across GLUE and causal LM tasks.
+This repository builds on [AutoPEFT](https://github.com/cambridgeltl/autopeft) (Zhou et al., TACL 2024).
 
 ---
 
